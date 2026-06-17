@@ -21,7 +21,7 @@
 
 ## Key Facts
 
-- **Svelte 5** — codebase uses legacy reactive `$:` syntax, not runes yet
+- **Svelte 5** — codebase uses runes (`$props`, `$state`, `$derived`, `$effect`, `$bindable`)
 - **No test framework** is configured. Verify via `npm run check` (type-checking) and Storybook.
 - **`engine-strict=true`** in `.npmrc` — `npm install` may fail on unsupported Node versions
 - **`dist/` and `/.svelte-kit/`** are gitignored; `dist/` is the npm publish artifact

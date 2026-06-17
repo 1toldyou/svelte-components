@@ -1,3 +1,5 @@
+import 'bulma/css/bulma.min.css';
+
 /** @type { import('@storybook/svelte').Preview } */
 const preview = {
   parameters: {

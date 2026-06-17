@@ -1,51 +1,76 @@
 <script lang="ts">
-    import type {ARTData, RenderTableDataLabel} from "./index";
+    import type {ARTData, RenderTableDataLabel} from "./index.js";
 
-    export let data: ARTData;
-    export let dataLabels: RenderTableDataLabel[];
-    export let defaultDataLabels: boolean = false;
-    export let selectRows: boolean = false;
+    let {
+        data,
+        dataLabels: dataLabelsProp = [],
+        defaultDataLabels = false,
+        selectRows = false,
+        selectedRows = $bindable([]),
+        selectedRowsIndex = $bindable([])
+    }: {
+        data: ARTData;
+        dataLabels?: RenderTableDataLabel[];
+        defaultDataLabels?: boolean;
+        selectRows?: boolean;
+        selectedRows?: boolean[];
+        selectedRowsIndex?: number[];
+    } = $props();
 
-    export let selectedRowsIndex: number[] = [];
-    export let selectedRows: boolean[] = [];
+    let dataLabels = $derived<RenderTableDataLabel[]>(
+        defaultDataLabels && data.length > 0
+            ? Object.keys(data[0]).map(key => ({label: key, dataKey: key, elementType: "p" as const}))
+            : dataLabelsProp
+    );
 
-    $: {
-        if (defaultDataLabels && data.length > 0) {
-            dataLabels = [];
-            Object.keys(data[0]).forEach(key => {
-                dataLabels.push({label: key, dataKey: key, elementType: "p"});
-            });
-            dataLabels = dataLabels;
-        }
-        console.log("new dataLabels", dataLabels, "from", data[0]);
-    }
-
-    $: {
-        if (data && data.length != selectedRows.length){
-            selectedRows = Array(data.length).fill(false);
-        }
-    }
-
-    $: {
-        selectedRows.forEach((selected, index) => {
-            if(selected){
-                if (!selectedRowsIndex.includes(index)){
-                    selectedRowsIndex = [...selectedRowsIndex, index];
-                }
-            }else{
-                selectedRowsIndex = selectedRowsIndex.filter(i => i !== index);
+    // Reset/resize selection state when data length changes.
+    // We mutate in place (instead of reassigning) so a parent bind:selectedRows
+    // keeps receiving updates on the same state proxy.
+    $effect(() => {
+        const targetLength = data.length;
+        if (selectedRows.length !== targetLength) {
+            selectedRows.length = targetLength;
+            for (let i = 0; i < targetLength; i++) {
+                selectedRows[i] = selectedRows[i] ?? false;
             }
-        });
-        console.log("selectedRowsIndex", selectedRowsIndex);
+        }
+    });
+
+    // Keep selectedRowsIndex in sync with selectedRows while preserving the
+    // parent bind:selectedRowsIndex reference.
+    $effect(() => {
+        const next: number[] = [];
+        for (let index = 0; index < selectedRows.length; index++) {
+            if (selectedRows[index]) {
+                next.push(index);
+            }
+        }
+        selectedRowsIndex.length = 0;
+        for (const index of next) {
+            selectedRowsIndex.push(index);
+        }
+    });
+
+    let selectByRangeStart = $state(0);
+    let selectByRangeEnd = $state(0);
+
+    function selectAll() {
+        for (let i = 0; i < data.length; i++) {
+            selectedRows[i] = true;
+        }
     }
 
-    let selectByRangeStart = 0;
-    let selectByRangeEnd = 0;
-    function selectByRange(){
+    function deselectAll() {
+        for (let i = 0; i < data.length; i++) {
+            selectedRows[i] = false;
+        }
+    }
+
+    function selectByRange() {
         selectByRangeStart = Math.max(selectByRangeStart, 0);
         selectByRangeEnd = Math.min(selectByRangeEnd, data.length - 1);
 
-        for (let i = selectByRangeStart; i <= selectByRangeEnd; i++){
+        for (let i = selectByRangeStart; i <= selectByRangeEnd; i++) {
             selectedRows[i] = true;
         }
     }
@@ -53,11 +78,11 @@
 
 {#if data.length > 0}
     {#if selectRows}
-        <button class="button is-primary" on:click={() => selectedRows = Array(data.length).fill(true)}>Select All</button>
-        <button class="button is-danger" on:click={() => selectedRows = Array(data.length).fill(false)}>Deselect All</button>
+        <button class="button is-primary" onclick={selectAll}>Select All</button>
+        <button class="button is-danger" onclick={deselectAll}>Deselect All</button>
         <input type="number" bind:value={selectByRangeStart} min="0" max={data.length - 1}>
         <input type="number" bind:value={selectByRangeEnd} min="0" max={data.length - 1}>
-        <button class="button is-primary" on:click={selectByRange}>Select by Range</button>
+        <button class="button is-primary" onclick={selectByRange}>Select by Range</button>
         <p>{selectedRowsIndex.length} rows selected</p>
     {/if}
     <table class="table is-striped">
@@ -66,7 +91,7 @@
             {#if selectRows}
                 <th>Index</th>
             {/if}
-            {#each dataLabels as label}
+            {#each dataLabels as label, j (j)}
                 <th>{label.label}</th>
             {/each}
             {#if selectRows}
@@ -75,12 +100,12 @@
         </tr>
         </thead>
         <tbody>
-        {#each data as row, i}
+        {#each data as row, i (i)}
             <tr>
                 {#if selectRows}
                     <th>{i}</th>
                 {/if}
-                {#each dataLabels as label}
+                {#each dataLabels as label, j (j)}
                     <td>
                         {#if label.elementType === "p"}
                             {#if label.innerTextProcessor}
@@ -97,7 +122,7 @@
                                 {/if}
                             </a>
                         {:else if label.elementType === "button"}
-                            <button class="button" on:click={() => label.onClick(row[label.dataKey], row)}>
+                            <button class="button" onclick={() => label.onClick(row[label.dataKey], row)}>
                                 {#if label.innerTextProcessor}
                                     {label.innerTextProcessor(row[label.dataKey], row)}
                                 {:else}
